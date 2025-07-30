@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Petugas extends Authenticatable
 {
+    use SoftDeletes;
+
     protected $table = 'petugas';
     protected $primaryKey = 'KodePetugas';
     public $incrementing = false;
@@ -25,18 +28,21 @@ class Petugas extends Authenticatable
         'Password',
     ];
 
-    // relasi
+    protected $dates = ['deleted_at'];
+
+    // Relasi ke peminjaman siswa
     public function pinjamHeaderSiswa()
     {
         return $this->hasMany(PinjamHeaderSiswa::class, 'KodePetugas', 'KodePetugas');
     }
 
+    // Relasi ke peminjaman non siswa
     public function pinjamHeaderNonSiswa()
     {
         return $this->hasMany(PinjamHeaderNonSiswa::class, 'KodePetugas', 'KodePetugas');
     }
 
-    // supaya Auth pakai kolom KodePetugas & Password
+    // Override untuk Auth
     public function getAuthIdentifierName()
     {
         return 'KodePetugas';

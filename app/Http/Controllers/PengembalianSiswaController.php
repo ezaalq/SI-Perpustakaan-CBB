@@ -13,9 +13,20 @@ use Carbon\Carbon;
 
 class PengembalianSiswaController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $pengembalian = KembaliSiswa::with(['pinjam', 'pinjam.detail'])->get();
+        $query = KembaliSiswa::with(['pinjam.anggota', 'pinjam.detail']);
+
+        if ($request->filled('q')) {
+            $q = $request->q;
+            $query->where('NoKembaliS', 'like', "%$q%")
+                ->orWhereHas('pinjam.anggota', function ($sub) use ($q) {
+                    $sub->where('NamaAnggota', 'like', "%$q%");
+                });
+        }
+
+        $pengembalian = $query->orderBy('TglKembali', 'desc')->paginate(10)->withQueryString();
+
         return view('pengembalian_siswa.index', compact('pengembalian'));
     }
 
@@ -38,7 +49,6 @@ class PengembalianSiswaController extends Controller
         ]);
 
         DB::transaction(function () use ($request) {
-
             $denda = $this->hitungDenda($request->NoPinjamS, $request->TglKembali);
 
             KembaliSiswa::create([
@@ -49,14 +59,12 @@ class PengembalianSiswaController extends Controller
                 'Denda' => $denda,
             ]);
 
-            // Update stok buku kembali
+            // Kembalikan stok buku
             $details = PinjamDetailSiswa::where('NoPinjamS', $request->NoPinjamS)->get();
-
             foreach ($details as $detail) {
                 $buku = Buku::find($detail->KodeBuku);
                 if ($buku) {
-                    $buku->JumEksemplar += $detail->Jml;
-                    $buku->save();
+                    $buku->increment('JumEksemplar', $detail->Jml);
                 }
             }
         });
@@ -82,10 +90,8 @@ class PengembalianSiswaController extends Controller
             'KodePetugas' => 'required|exists:petugas,KodePetugas',
         ]);
 
-        $kembali = KembaliSiswa::findOrFail($id);
-
-        DB::transaction(function () use ($kembali, $request) {
-
+        DB::transaction(function () use ($request, $id) {
+            $kembali = KembaliSiswa::findOrFail($id);
             $denda = $this->hitungDenda($request->NoPinjamS, $request->TglKembali);
 
             $kembali->update([
@@ -102,35 +108,27 @@ class PengembalianSiswaController extends Controller
 
     public function destroy($id)
     {
-        KembaliSiswa::where('NoKembaliS', $id)->delete();
+        KembaliSiswa::findOrFail($id)->delete(); // Soft delete
 
         return redirect()->route('pengembalian-siswa.index')
             ->with('success', '🗑️ Pengembalian berhasil dihapus.');
     }
 
-    /**
-     * Hitung Denda
-     */
     private function hitungDenda($NoPinjamS, $TglKembali)
     {
         $pinjam = PinjamHeaderSiswa::with('detail')->findOrFail($NoPinjamS);
 
         $jatuhTempo = Carbon::parse($pinjam->TglKembali);
         $tglKembali = Carbon::parse($TglKembali);
-
         $selisihHari = $tglKembali->diffInDays($jatuhTempo, false); // negatif jika telat
 
         if ($selisihHari >= 0)
-            return 0; // tidak telat
+            return 0;
 
         $jumlahBuku = $pinjam->detail->sum('Jml');
-
         return abs($selisihHari) * $jumlahBuku * 1000;
     }
 
-    /**
-     * Generate NoKembaliS
-     */
     private function generateKode()
     {
         $last = KembaliSiswa::orderBy('NoKembaliS', 'desc')->first();
@@ -138,9 +136,6 @@ class PengembalianSiswaController extends Controller
         return 'KB' . str_pad($number, 4, '0', STR_PAD_LEFT);
     }
 
-    /**
-     * API: Peminjaman detail untuk AJAX
-     */
     public function getPeminjaman($no)
     {
         $pinjam = PinjamHeaderSiswa::with('detail')->findOrFail($no);

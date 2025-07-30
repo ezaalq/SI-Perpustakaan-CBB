@@ -2,13 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\PinjamHeaderSiswa;
-use App\Models\KembaliSiswa;
-use App\Models\PinjamHeaderNonSiswa;
-use App\Models\KembaliNonSiswa;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
-
+use App\Models\Buku;
+use App\Models\AnggotaSiswa;
+use App\Models\AnggotaNonSiswa;
+use App\Models\PinjamHeaderSiswa;
+use App\Models\PinjamHeaderNonSiswa;
+use App\Models\KembaliSiswa;
+use App\Models\KembaliNonSiswa;
 
 class LaporanController extends Controller
 {
@@ -16,104 +18,208 @@ class LaporanController extends Controller
     {
         $from = $request->from ?? now()->startOfMonth()->toDateString();
         $to = $request->to ?? now()->toDateString();
+        $search = $request->search;
 
-        $siswa = \App\Models\PinjamHeaderSiswa::whereBetween('TglPinjam', [$from, $to])->get();
-        $non = \App\Models\PinjamHeaderNonSiswa::whereBetween('TglPinjam', [$from, $to])->get();
+        $siswa = PinjamHeaderSiswa::with(['anggota'])
+            ->whereBetween('TglPinjam', [$from, $to])
+            ->whereHas('anggota', function ($q) use ($search) {
+                if ($search)
+                    $q->where('NamaAnggota', 'like', "%$search%");
+            })
+            ->whereNull('deleted_at')
+            ->paginate(10)
+            ->withQueryString();
 
-        return view('laporan.peminjaman', compact('from', 'to', 'siswa', 'non'));
+        $non = PinjamHeaderNonSiswa::with(['anggota'])
+            ->whereBetween('TglPinjam', [$from, $to])
+            ->whereHas('anggota', function ($q) use ($search) {
+                if ($search)
+                    $q->where('NamaAnggota', 'like', "%$search%");
+            })
+            ->whereNull('deleted_at')
+            ->paginate(10, ['*'], 'non_page')
+            ->withQueryString();
+
+        return view('laporan.peminjaman', compact('from', 'to', 'search', 'siswa', 'non'));
     }
-
 
     public function pengembalian(Request $request)
     {
         $from = $request->from ?? now()->startOfMonth()->toDateString();
         $to = $request->to ?? now()->toDateString();
+        $search = $request->search;
 
-        $siswa = \App\Models\KembaliSiswa::whereBetween('TglKembali', [$from, $to])->get();
-        $non = \App\Models\KembaliNonSiswa::whereBetween('TglKembali', [$from, $to])->get();
+        $siswa = KembaliSiswa::with(['pinjam.anggota'])
+            ->whereBetween('TglKembali', [$from, $to])
+            ->whereHas('pinjam.anggota', function ($q) use ($search) {
+                if ($search)
+                    $q->where('NamaAnggota', 'like', "%$search%");
+            })
+            ->whereNull('deleted_at')
+            ->paginate(10)
+            ->withQueryString();
 
-        return view('laporan.pengembalian', compact('from', 'to', 'siswa', 'non'));
+        $non = KembaliNonSiswa::with(['pinjam.anggota'])
+            ->whereBetween('TglKembali', [$from, $to])
+            ->whereHas('pinjam.anggota', function ($q) use ($search) {
+                if ($search)
+                    $q->where('NamaAnggota', 'like', "%$search%");
+            })
+            ->whereNull('deleted_at')
+            ->paginate(10, ['*'], 'non_page')
+            ->withQueryString();
+
+        return view('laporan.pengembalian', compact('from', 'to', 'search', 'siswa', 'non'));
     }
+
     public function buku()
     {
-        $buku = \App\Models\Buku::all();
+        $buku = Buku::whereNull('deleted_at')->latest('KodeBuku')->paginate(10);
         return view('laporan.buku', compact('buku'));
     }
-    public function anggota()
-    {
-        $siswa = \App\Models\AnggotaSiswa::all();
-        $non = \App\Models\AnggotaNonSiswa::all();
 
-        return view('laporan.anggota', compact('siswa', 'non'));
+    public function anggota(Request $request)
+    {
+        $search = $request->search;
+
+        $siswa = AnggotaSiswa::whereNull('deleted_at')
+            ->when($search, fn($q) => $q->where('NamaAnggota', 'like', "%$search%"))
+            ->latest('NoAnggotaS')->paginate(10);
+
+        $non = AnggotaNonSiswa::whereNull('deleted_at')
+            ->when($search, fn($q) => $q->where('NamaAnggota', 'like', "%$search%"))
+            ->latest('NoAnggotaNS')->paginate(10, ['*'], 'non_page');
+
+        return view('laporan.anggota', compact('search', 'siswa', 'non'));
     }
+
     public function denda(Request $request)
     {
         $from = $request->from ?? now()->startOfMonth()->toDateString();
         $to = $request->to ?? now()->toDateString();
+        $search = $request->search;
 
-        $siswa = \App\Models\KembaliSiswa::with(['pinjam.anggota'])
+        $siswa = KembaliSiswa::with(['pinjam.anggota'])
             ->where('Denda', '>', 0)
             ->whereBetween('TglKembali', [$from, $to])
-            ->get();
+            ->whereHas('pinjam.anggota', function ($q) use ($search) {
+                if ($search)
+                    $q->where('NamaAnggota', 'like', "%$search%");
+            })
+            ->whereNull('deleted_at')
+            ->paginate(10)
+            ->withQueryString();
 
-        $non = \App\Models\KembaliNonSiswa::with(['pinjam.anggota'])
+        $non = KembaliNonSiswa::with(['pinjam.anggota'])
             ->where('Denda', '>', 0)
             ->whereBetween('TglKembali', [$from, $to])
-            ->get();
+            ->whereHas('pinjam.anggota', function ($q) use ($search) {
+                if ($search)
+                    $q->where('NamaAnggota', 'like', "%$search%");
+            })
+            ->whereNull('deleted_at')
+            ->paginate(10, ['*'], 'non_page')
+            ->withQueryString();
 
-        return view('laporan.denda', compact('from', 'to', 'siswa', 'non'));
+        return view('laporan.denda', compact('from', 'to', 'search', 'siswa', 'non'));
     }
+
+    // ==================== PDF ====================
+
     public function peminjamanPdf(Request $request)
     {
         $from = $request->from ?? now()->startOfMonth()->toDateString();
         $to = $request->to ?? now()->toDateString();
+        $search = $request->search;
 
-        $siswa = \App\Models\PinjamHeaderSiswa::whereBetween('TglPinjam', [$from, $to])->get();
-        $non = \App\Models\PinjamHeaderNonSiswa::whereBetween('TglPinjam', [$from, $to])->get();
+        $siswa = PinjamHeaderSiswa::with(['anggota'])
+            ->whereBetween('TglPinjam', [$from, $to])
+            ->whereHas('anggota', function ($q) use ($search) {
+                if ($search)
+                    $q->where('NamaAnggota', 'like', "%$search%");
+            })->whereNull('deleted_at')->get();
 
-        $pdf = Pdf::loadView('laporan.pdf.peminjaman', compact('from', 'to', 'siswa', 'non'));
+        $non = PinjamHeaderNonSiswa::with(['anggota'])
+            ->whereBetween('TglPinjam', [$from, $to])
+            ->whereHas('anggota', function ($q) use ($search) {
+                if ($search)
+                    $q->where('NamaAnggota', 'like', "%$search%");
+            })->whereNull('deleted_at')->get();
+
+        $pdf = Pdf::loadView('laporan.pdf.peminjaman', compact('from', 'to', 'search', 'siswa', 'non'));
         return $pdf->download("laporan_peminjaman_{$from}_to_{$to}.pdf");
     }
+
     public function pengembalianPdf(Request $request)
     {
         $from = $request->from ?? now()->startOfMonth()->toDateString();
         $to = $request->to ?? now()->toDateString();
+        $search = $request->search;
 
-        $siswa = \App\Models\KembaliSiswa::whereBetween('TglKembali', [$from, $to])->get();
-        $non = \App\Models\KembaliNonSiswa::whereBetween('TglKembali', [$from, $to])->get();
+        $siswa = KembaliSiswa::with(['pinjam.anggota'])
+            ->whereBetween('TglKembali', [$from, $to])
+            ->whereHas('pinjam.anggota', function ($q) use ($search) {
+                if ($search)
+                    $q->where('NamaAnggota', 'like', "%$search%");
+            })->whereNull('deleted_at')->get();
 
-        $pdf = Pdf::loadView('laporan.pdf.pengembalian', compact('from', 'to', 'siswa', 'non'));
+        $non = KembaliNonSiswa::with(['pinjam.anggota'])
+            ->whereBetween('TglKembali', [$from, $to])
+            ->whereHas('pinjam.anggota', function ($q) use ($search) {
+                if ($search)
+                    $q->where('NamaAnggota', 'like', "%$search%");
+            })->whereNull('deleted_at')->get();
+
+        $pdf = Pdf::loadView('laporan.pdf.pengembalian', compact('from', 'to', 'search', 'siswa', 'non'));
         return $pdf->download("laporan_pengembalian_{$from}_to_{$to}.pdf");
     }
+
     public function bukuPdf()
     {
-        $buku = \App\Models\Buku::all();
+        $buku = Buku::whereNull('deleted_at')->get();
         $pdf = Pdf::loadView('laporan.pdf.buku', compact('buku'));
         return $pdf->download("laporan_buku.pdf");
     }
-    public function anggotaPdf()
-    {
-        $siswa = \App\Models\AnggotaSiswa::all();
-        $non = \App\Models\AnggotaNonSiswa::all();
 
-        $pdf = Pdf::loadView('laporan.pdf.anggota', compact('siswa', 'non'));
+    public function anggotaPdf(Request $request)
+    {
+        $search = $request->search;
+
+        $siswa = AnggotaSiswa::whereNull('deleted_at')
+            ->when($search, fn($q) => $q->where('NamaAnggota', 'like', "%$search%"))
+            ->get();
+
+        $non = AnggotaNonSiswa::whereNull('deleted_at')
+            ->when($search, fn($q) => $q->where('NamaAnggota', 'like', "%$search%"))
+            ->get();
+
+        $pdf = Pdf::loadView('laporan.pdf.anggota', compact('siswa', 'non', 'search'));
         return $pdf->download("laporan_anggota.pdf");
     }
+
     public function dendaPdf(Request $request)
     {
         $from = $request->from ?? now()->startOfMonth()->toDateString();
         $to = $request->to ?? now()->toDateString();
+        $search = $request->search;
 
-        $siswa = \App\Models\KembaliSiswa::with(['pinjam.anggota'])
+        $siswa = KembaliSiswa::with(['pinjam.anggota'])
             ->where('Denda', '>', 0)
-            ->whereBetween('TglKembali', [$from, $to])->get();
+            ->whereBetween('TglKembali', [$from, $to])
+            ->whereHas('pinjam.anggota', function ($q) use ($search) {
+                if ($search)
+                    $q->where('NamaAnggota', 'like', "%$search%");
+            })->whereNull('deleted_at')->get();
 
-        $non = \App\Models\KembaliNonSiswa::with(['pinjam.anggota'])
+        $non = KembaliNonSiswa::with(['pinjam.anggota'])
             ->where('Denda', '>', 0)
-            ->whereBetween('TglKembali', [$from, $to])->get();
+            ->whereBetween('TglKembali', [$from, $to])
+            ->whereHas('pinjam.anggota', function ($q) use ($search) {
+                if ($search)
+                    $q->where('NamaAnggota', 'like', "%$search%");
+            })->whereNull('deleted_at')->get();
 
-        $pdf = Pdf::loadView('laporan.pdf.denda', compact('from', 'to', 'siswa', 'non'));
+        $pdf = Pdf::loadView('laporan.pdf.denda', compact('from', 'to', 'search', 'siswa', 'non'));
         return $pdf->download("laporan_denda_{$from}_to_{$to}.pdf");
     }
-
 }

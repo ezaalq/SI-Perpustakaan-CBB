@@ -7,10 +7,21 @@ use Illuminate\Http\Request;
 
 class PetugasController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $petugas = Petugas::all();
-        return view('petugas.index', compact('petugas'));
+        $query = Petugas::query();
+
+        if ($request->has('search')) {
+            $query->where(function ($q) use ($request) {
+                $q->where('Nama', 'like', '%' . $request->search . '%')
+                    ->orWhere('KodePetugas', 'like', '%' . $request->search . '%');
+            });
+        }
+
+        $petugas = $query->latest('KodePetugas')->paginate(10)->withQueryString();
+        $trashed = Petugas::onlyTrashed()->paginate(5, ['*'], 'trash_page')->withQueryString();
+
+        return view('petugas.index', compact('petugas', 'trashed'));
     }
 
     public function create()
@@ -29,11 +40,11 @@ class PetugasController extends Controller
         ]);
 
         $data = $request->all();
-        $data['Password'] = bcrypt($data['Password']); // hash password
+        $data['Password'] = bcrypt($data['Password']);
         Petugas::create($data);
 
         return redirect()->route('petugas.index')
-            ->with('success', 'Petugas berhasil ditambahkan.');
+            ->with('success', '✅ Petugas berhasil ditambahkan.');
     }
 
     public function edit($id)
@@ -63,14 +74,33 @@ class PetugasController extends Controller
         $petugas->update($data);
 
         return redirect()->route('petugas.index')
-            ->with('success', 'Petugas berhasil diperbarui.');
+            ->with('success', '✏️ Petugas berhasil diperbarui.');
     }
 
     public function destroy($id)
     {
         $petugas = Petugas::findOrFail($id);
         $petugas->delete();
+
         return redirect()->route('petugas.index')
-            ->with('success', 'Petugas berhasil dihapus.');
+            ->with('success', '🗑️ Petugas berhasil dihapus.');
+    }
+
+    public function restore($id)
+    {
+        $petugas = Petugas::onlyTrashed()->findOrFail($id);
+        $petugas->restore();
+
+        return redirect()->route('petugas.index')
+            ->with('success', '♻️ Petugas berhasil dikembalikan.');
+    }
+
+    public function forceDelete($id)
+    {
+        $petugas = Petugas::onlyTrashed()->findOrFail($id);
+        $petugas->forceDelete();
+
+        return redirect()->route('petugas.index')
+            ->with('success', '❌ Data petugas dihapus permanen.');
     }
 }

@@ -5,15 +5,27 @@ namespace App\Http\Controllers;
 use App\Models\KembaliNonSiswa;
 use App\Models\PinjamHeaderNonSiswa;
 use App\Models\Petugas;
+use App\Models\Buku;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class PengembalianNonSiswaController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $pengembalian = KembaliNonSiswa::with(['pinjam', 'pinjam.detail'])->get();
+        $query = KembaliNonSiswa::with(['pinjam.anggota', 'pinjam.detail']);
+
+        if ($request->filled('q')) {
+            $q = $request->q;
+            $query->where('NoKembaliNS', 'like', "%$q%")
+                ->orWhereHas('pinjam.anggota', function ($sub) use ($q) {
+                    $sub->where('NamaAnggota', 'like', "%$q%");
+                });
+        }
+
+        $pengembalian = $query->orderBy('TglKembali', 'desc')->paginate(10)->withQueryString();
+
         return view('pengembalian_non_siswa.index', compact('pengembalian'));
     }
 
@@ -35,15 +47,23 @@ class PengembalianNonSiswaController extends Controller
             'KodePetugas' => 'required|exists:petugas,KodePetugas',
         ]);
 
-        $denda = $this->hitungDenda($request->NoPinjamNS, $request->TglKembali);
+        DB::transaction(function () use ($request) {
+            $denda = $this->hitungDenda($request->NoPinjamNS, $request->TglKembali);
 
-        KembaliNonSiswa::create([
-            'NoKembaliNS' => $request->NoKembaliNS,
-            'NoPinjamNS' => $request->NoPinjamNS,
-            'TglKembali' => $request->TglKembali,
-            'KodePetugas' => $request->KodePetugas,
-            'Denda' => $denda,
-        ]);
+            KembaliNonSiswa::create([
+                'NoKembaliNS' => $request->NoKembaliNS,
+                'NoPinjamNS' => $request->NoPinjamNS,
+                'TglKembali' => $request->TglKembali,
+                'KodePetugas' => $request->KodePetugas,
+                'Denda' => $denda,
+            ]);
+
+            // Tambahkan kembali stok buku
+            $pinjam = PinjamHeaderNonSiswa::with('detail')->findOrFail($request->NoPinjamNS);
+            foreach ($pinjam->detail as $item) {
+                Buku::where('KodeBuku', $item->KodeBuku)->increment('JumEksemplar', $item->Jml);
+            }
+        });
 
         return redirect()->route('pengembalian-non-siswa.index')
             ->with('success', '✅ Pengembalian Non Siswa berhasil disimpan.');
@@ -66,16 +86,18 @@ class PengembalianNonSiswaController extends Controller
             'KodePetugas' => 'required|exists:petugas,KodePetugas',
         ]);
 
-        $kembali = KembaliNonSiswa::findOrFail($id);
+        DB::transaction(function () use ($request, $id) {
+            $kembali = KembaliNonSiswa::findOrFail($id);
 
-        $denda = $this->hitungDenda($request->NoPinjamNS, $request->TglKembali);
+            $denda = $this->hitungDenda($request->NoPinjamNS, $request->TglKembali);
 
-        $kembali->update([
-            'NoPinjamNS' => $request->NoPinjamNS,
-            'TglKembali' => $request->TglKembali,
-            'KodePetugas' => $request->KodePetugas,
-            'Denda' => $denda,
-        ]);
+            $kembali->update([
+                'NoPinjamNS' => $request->NoPinjamNS,
+                'TglKembali' => $request->TglKembali,
+                'KodePetugas' => $request->KodePetugas,
+                'Denda' => $denda,
+            ]);
+        });
 
         return redirect()->route('pengembalian-non-siswa.index')
             ->with('success', '✅ Pengembalian Non Siswa berhasil diperbarui.');
@@ -83,7 +105,7 @@ class PengembalianNonSiswaController extends Controller
 
     public function destroy($id)
     {
-        KembaliNonSiswa::where('NoKembaliNS', $id)->delete();
+        KembaliNonSiswa::where('NoKembaliNS', $id)->delete(); // soft delete
 
         return redirect()->route('pengembalian-non-siswa.index')
             ->with('success', '🗑️ Pengembalian Non Siswa berhasil dihapus.');
@@ -95,7 +117,6 @@ class PengembalianNonSiswaController extends Controller
     private function hitungDenda($NoPinjamNS, $TglKembali)
     {
         $pinjam = PinjamHeaderNonSiswa::with('detail')->findOrFail($NoPinjamNS);
-
         $jatuhTempo = Carbon::parse($pinjam->TglKembali);
         $tglKembali = Carbon::parse($TglKembali);
         $selisihHari = $tglKembali->diffInDays($jatuhTempo, false);
@@ -104,7 +125,6 @@ class PengembalianNonSiswaController extends Controller
             return 0;
 
         $jumlahBuku = $pinjam->detail->sum('Jml');
-
         return abs($selisihHari) * $jumlahBuku * 1000;
     }
 
@@ -123,11 +143,10 @@ class PengembalianNonSiswaController extends Controller
      */
     public function getPeminjaman($no)
     {
-        $pinjam = \App\Models\PinjamHeaderNonSiswa::findOrFail($no);
+        $pinjam = PinjamHeaderNonSiswa::findOrFail($no);
         return response()->json([
             'TglPinjam' => $pinjam->TglPinjam,
             'TglKembali' => $pinjam->TglKembali
         ]);
     }
-
 }

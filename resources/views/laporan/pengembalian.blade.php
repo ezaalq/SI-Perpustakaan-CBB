@@ -7,18 +7,23 @@
 
             <h1 style="margin-bottom:20px;">📄 Laporan Pengembalian</h1>
 
+            {{-- Filter Tanggal & Search --}}
             <form method="GET" class="mb-4 d-flex justify-content-center gap-2" style="flex-wrap:wrap; gap:10px;">
                 <input type="date" name="from" value="{{ $from }}"
                     style="padding:5px; border:1px solid #ccc; border-radius:4px;">
                 <input type="date" name="to" value="{{ $to }}"
                     style="padding:5px; border:1px solid #ccc; border-radius:4px;">
+                <input type="text" name="search" value="{{ request('search') }}" placeholder="Cari nama anggota"
+                    style="padding:5px; border:1px solid #ccc; border-radius:4px; width:200px;">
                 <button class="btn btn-primary" style="padding:6px 12px;">🔍 Filter</button>
-                <a href="{{ route('laporan.pengembalian.pdf', ['from' => $from, 'to' => $to]) }}" target="_blank"
+                <a href="{{ route('laporan.pengembalian.pdf', ['from' => $from, 'to' => $to, 'search' => request('search')]) }}"
+                    target="_blank"
                     style="background-color: #28a745; color: #fff; font-weight: 500; text-decoration: none; padding: 6px 12px; border-radius: 5px;">
                     📄 Cetak PDF
                 </a>
             </form>
 
+            {{-- Siswa --}}
             <h3 style="margin-top:30px;">Siswa</h3>
             <div style="overflow-x:auto; display:flex; justify-content:center; margin-bottom:30px;">
                 <table class="table table-bordered table-striped text-center"
@@ -26,28 +31,33 @@
                     <thead style="background:#28a745; color:white;">
                         <tr>
                             <th>No</th>
-                            <th>Kembali</th>
-                            <th>Pinjam</th>
-                            <th>Anggota</th>
-                            <th>Tanggal</th>
+                            <th>No Kembali</th>
+                            <th>No Pinjam</th>
+                            <th>Nama Anggota</th>
+                            <th>Tanggal Kembali</th>
                             <th>Denda</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($siswa as $s)
+                        @forelse($siswa as $s)
                             <tr>
                                 <td>{{ $loop->iteration }}</td>
                                 <td>{{ $s->NoKembaliS }}</td>
                                 <td>{{ $s->NoPinjamS }}</td>
-                                <td>{{ $s->pinjam->NoAnggotaS }}</td>
+                                <td>{{ $s->pinjam->anggota->NamaAnggota ?? $s->pinjam->NoAnggotaS }}</td>
                                 <td>{{ $s->TglKembali }}</td>
                                 <td>{{ $s->Denda }}</td>
                             </tr>
-                        @endforeach
+                        @empty
+                            <tr>
+                                <td colspan="6">Tidak ada data ditemukan.</td>
+                            </tr>
+                        @endforelse
                     </tbody>
                 </table>
             </div>
 
+            {{-- Non Siswa --}}
             <h3 style="margin-top:30px;">Non Siswa</h3>
             <div style="overflow-x:auto; display:flex; justify-content:center;">
                 <table class="table table-bordered table-striped text-center"
@@ -55,27 +65,33 @@
                     <thead style="background:#28a745; color:white;">
                         <tr>
                             <th>No</th>
-                            <th>Kembali</th>
-                            <th>Pinjam</th>
-                            <th>Anggota</th>
-                            <th>Tanggal</th>
+                            <th>No Kembali</th>
+                            <th>No Pinjam</th>
+                            <th>Nama Anggota</th>
+                            <th>Tanggal Kembali</th>
                             <th>Denda</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($non as $n)
+                        @forelse($non as $n)
                             <tr>
                                 <td>{{ $loop->iteration }}</td>
                                 <td>{{ $n->NoKembaliNS }}</td>
                                 <td>{{ $n->NoPinjamNS }}</td>
-                                <td>{{ $n->pinjam->NoAnggotaNS }}</td>
+                                <td>{{ $n->pinjam->anggota->NamaAnggota ?? $n->pinjam->NoAnggotaNS }}</td>
                                 <td>{{ $n->TglKembali }}</td>
                                 <td>{{ $n->Denda }}</td>
                             </tr>
-                        @endforeach
+                        @empty
+                            <tr>
+                                <td colspan="6">Tidak ada data ditemukan.</td>
+                            </tr>
+                        @endforelse
                     </tbody>
                 </table>
             </div>
+
+            {{-- Footer --}}
             <div style="width:100%; display:flex; justify-content:flex-end; margin-top:50px;">
                 <div style="text-align:right;">
                     <p>Mengetahui,</p>

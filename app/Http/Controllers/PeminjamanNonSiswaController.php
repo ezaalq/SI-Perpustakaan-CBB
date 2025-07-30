@@ -12,9 +12,18 @@ use Illuminate\Support\Facades\DB;
 
 class PeminjamanNonSiswaController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $peminjaman = PinjamHeaderNonSiswa::with('detail')->get();
+        $query = PinjamHeaderNonSiswa::with('detail', 'anggota');
+
+        if ($request->filled('q')) {
+            $q = $request->q;
+            $query->where('NoPinjamNS', 'like', "%$q%")
+                ->orWhereHas('anggota', fn($sub) => $sub->where('NamaAnggota', 'like', "%$q%"));
+        }
+
+        $peminjaman = $query->latest('TglPinjam')->paginate(10)->withQueryString();
+
         return view('peminjaman_non_siswa.index', compact('peminjaman'));
     }
 
@@ -49,8 +58,8 @@ class PeminjamanNonSiswaController extends Controller
             ]));
 
             foreach ($request->detail as $row) {
-                $buku = Buku::find($row['KodeBuku']);
-                if (!$buku || $row['Jml'] > $buku->JumEksemplar) {
+                $buku = Buku::findOrFail($row['KodeBuku']);
+                if ($row['Jml'] > $buku->JumEksemplar) {
                     throw \Illuminate\Validation\ValidationException::withMessages([
                         'detail' => "Jumlah pinjam buku {$row['KodeBuku']} melebihi stok."
                     ]);
@@ -68,7 +77,8 @@ class PeminjamanNonSiswaController extends Controller
             }
         });
 
-        return redirect()->route('peminjaman-non-siswa.index')->with('success', 'Peminjaman Non Siswa berhasil disimpan.');
+        return redirect()->route('peminjaman-non-siswa.index')
+            ->with('success', '✅ Peminjaman Non Siswa berhasil disimpan.');
     }
 
     public function edit($id)
@@ -92,20 +102,18 @@ class PeminjamanNonSiswaController extends Controller
         ]);
 
         DB::transaction(function () use ($request, $id) {
-            $header = PinjamHeaderNonSiswa::findOrFail($id);
+            $header = PinjamHeaderNonSiswa::with('detail')->findOrFail($id);
             $header->update($request->only(['TglPinjam', 'TglKembali', 'NoAnggotaNS', 'KodePetugas']));
 
-            // kembalikan stok
             foreach ($header->detail as $d) {
-                $buku = Buku::find($d->KodeBuku);
-                $buku->increment('JumEksemplar', $d->Jml);
+                Buku::find($d->KodeBuku)?->increment('JumEksemplar', $d->Jml);
             }
 
             PinjamDetailNonSiswa::where('NoPinjamNS', $id)->delete();
 
             foreach ($request->detail as $row) {
-                $buku = Buku::find($row['KodeBuku']);
-                if (!$buku || $row['Jml'] > $buku->JumEksemplar) {
+                $buku = Buku::findOrFail($row['KodeBuku']);
+                if ($row['Jml'] > $buku->JumEksemplar) {
                     throw \Illuminate\Validation\ValidationException::withMessages([
                         'detail' => "Jumlah pinjam buku {$row['KodeBuku']} melebihi stok."
                     ]);
@@ -123,7 +131,8 @@ class PeminjamanNonSiswaController extends Controller
             }
         });
 
-        return redirect()->route('peminjaman-non-siswa.index')->with('success', 'Peminjaman Non Siswa berhasil diperbarui.');
+        return redirect()->route('peminjaman-non-siswa.index')
+            ->with('success', '✅ Peminjaman Non Siswa berhasil diperbarui.');
     }
 
     public function destroy($id)
@@ -131,13 +140,14 @@ class PeminjamanNonSiswaController extends Controller
         DB::transaction(function () use ($id) {
             $header = PinjamHeaderNonSiswa::with('detail')->findOrFail($id);
             foreach ($header->detail as $d) {
-                Buku::find($d->KodeBuku)->increment('JumEksemplar', $d->Jml);
+                Buku::find($d->KodeBuku)?->increment('JumEksemplar', $d->Jml);
             }
             PinjamDetailNonSiswa::where('NoPinjamNS', $id)->delete();
-            $header->delete();
+            $header->delete(); // soft delete
         });
 
-        return redirect()->route('peminjaman-non-siswa.index')->with('success', 'Peminjaman Non Siswa berhasil dihapus.');
+        return redirect()->route('peminjaman-non-siswa.index')
+            ->with('success', '🗑️ Peminjaman Non Siswa berhasil dihapus.');
     }
 
     private function generateKode()

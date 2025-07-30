@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PinjamDetailNonSiswa extends Model
 {
+    use SoftDeletes;
+
     protected $table = 'pinjam_detail_non_siswa';
     public $timestamps = false;
 
@@ -17,6 +20,8 @@ class PinjamDetailNonSiswa extends Model
         'ThnTerbit',
         'Jml'
     ];
+
+    protected $dates = ['deleted_at'];
 
     public function header()
     {

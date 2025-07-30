@@ -12,9 +12,18 @@ use Illuminate\Support\Facades\DB;
 
 class PeminjamanSiswaController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $peminjaman = PinjamHeaderSiswa::with('detail')->get();
+        $query = PinjamHeaderSiswa::with('detail', 'anggota');
+
+        if ($request->filled('q')) {
+            $q = $request->q;
+            $query->where('NoPinjamS', 'like', "%$q%")
+                ->orWhereHas('anggota', fn($q1) => $q1->where('NamaAnggota', 'like', "%$q%"));
+        }
+
+        $peminjaman = $query->latest('TglPinjam')->paginate(10)->withQueryString();
+
         return view('peminjaman_siswa.index', compact('peminjaman'));
     }
 
@@ -37,10 +46,6 @@ class PeminjamanSiswaController extends Controller
             'NoAnggotaS' => 'required|exists:anggota_siswa,NoAnggotaS',
             'KodePetugas' => 'required|exists:petugas,KodePetugas',
             'detail' => 'required|array|min:1'
-        ], [
-            'NoAnggotaS.exists' => 'No Anggota tidak ditemukan.',
-            'KodePetugas.exists' => 'Kode Petugas tidak ditemukan.',
-            'TglKembali.after_or_equal' => 'Tanggal kembali tidak boleh sebelum tanggal pinjam.'
         ]);
 
         DB::transaction(function () use ($request) {
@@ -53,8 +58,8 @@ class PeminjamanSiswaController extends Controller
             ]));
 
             foreach ($request->detail as $row) {
-                $buku = Buku::find($row['KodeBuku']);
-                if (!$buku || $row['Jml'] > $buku->JumEksemplar) {
+                $buku = Buku::findOrFail($row['KodeBuku']);
+                if ($row['Jml'] > $buku->JumEksemplar) {
                     throw \Illuminate\Validation\ValidationException::withMessages([
                         'detail' => "Jumlah pinjam untuk buku {$row['KodeBuku']} melebihi stok."
                     ]);
@@ -74,7 +79,7 @@ class PeminjamanSiswaController extends Controller
         });
 
         return redirect()->route('peminjaman-siswa.index')
-            ->with('success', 'Peminjaman berhasil disimpan.');
+            ->with('success', '✅ Peminjaman berhasil disimpan.');
     }
 
     public function edit($id)
@@ -95,20 +100,13 @@ class PeminjamanSiswaController extends Controller
             'NoAnggotaS' => 'required|exists:anggota_siswa,NoAnggotaS',
             'KodePetugas' => 'required|exists:petugas,KodePetugas',
             'detail' => 'required|array|min:1'
-        ], [
-            'NoAnggotaS.exists' => 'No Anggota tidak ditemukan.',
-            'KodePetugas.exists' => 'Kode Petugas tidak ditemukan.',
-            'TglKembali.after_or_equal' => 'Tanggal kembali tidak boleh sebelum tanggal pinjam.'
         ]);
 
         DB::transaction(function () use ($request, $id) {
-            $header = PinjamHeaderSiswa::findOrFail($id);
+            $header = PinjamHeaderSiswa::with('detail')->findOrFail($id);
 
-            // Kembalikan stok lama
             foreach ($header->detail as $d) {
-                $buku = Buku::find($d->KodeBuku);
-                if ($buku)
-                    $buku->increment('JumEksemplar', $d->Jml);
+                Buku::find($d->KodeBuku)?->increment('JumEksemplar', $d->Jml);
             }
 
             $header->update($request->only([
@@ -121,8 +119,8 @@ class PeminjamanSiswaController extends Controller
             PinjamDetailSiswa::where('NoPinjamS', $id)->delete();
 
             foreach ($request->detail as $row) {
-                $buku = Buku::find($row['KodeBuku']);
-                if (!$buku || $row['Jml'] > $buku->JumEksemplar) {
+                $buku = Buku::findOrFail($row['KodeBuku']);
+                if ($row['Jml'] > $buku->JumEksemplar) {
                     throw \Illuminate\Validation\ValidationException::withMessages([
                         'detail' => "Jumlah pinjam untuk buku {$row['KodeBuku']} melebihi stok."
                     ]);
@@ -142,7 +140,7 @@ class PeminjamanSiswaController extends Controller
         });
 
         return redirect()->route('peminjaman-siswa.index')
-            ->with('success', 'Peminjaman berhasil diperbarui.');
+            ->with('success', '✅ Peminjaman berhasil diperbarui.');
     }
 
     public function destroy($id)
@@ -151,17 +149,15 @@ class PeminjamanSiswaController extends Controller
             $header = PinjamHeaderSiswa::with('detail')->findOrFail($id);
 
             foreach ($header->detail as $d) {
-                $buku = Buku::find($d->KodeBuku);
-                if ($buku)
-                    $buku->increment('JumEksemplar', $d->Jml);
+                Buku::find($d->KodeBuku)?->increment('JumEksemplar', $d->Jml);
             }
 
             PinjamDetailSiswa::where('NoPinjamS', $id)->delete();
-            $header->delete();
+            $header->delete(); // soft delete
         });
 
         return redirect()->route('peminjaman-siswa.index')
-            ->with('success', 'Peminjaman berhasil dihapus.');
+            ->with('success', '🗑️ Peminjaman berhasil dihapus.');
     }
 
     private function generateKode()

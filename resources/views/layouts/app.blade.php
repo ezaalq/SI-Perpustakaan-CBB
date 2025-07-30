@@ -1,12 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard</title>
+    <title>Perpustakaan | Dashboard</title>
 
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+
     <style>
         * {
             font-family: 'Poppins', sans-serif;
@@ -15,24 +16,29 @@
 
         body {
             margin: 0;
-            background: url('{{ asset("images/library.jpg") }}') center center / cover no-repeat;
+            background: url('{{ asset("images/library.jpg") }}') center center / cover no-repeat fixed, #f9f9f9;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
         }
 
         header {
-            background-color: #228B22;
+            background-color: #2e8b57;
             color: white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            position: sticky;
+            top: 0;
         }
 
         .navbar {
-            margin: 0 auto;
-            padding: 0 20px;
+            max-width: 1200px;
+            margin: auto;
+            padding: 10px 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            height: 60px;
+            flex-wrap: wrap;
         }
 
         .brand-link {
@@ -44,70 +50,144 @@
         }
 
         .brand-link img {
-            height: 35px;
+            height: 36px;
         }
 
         .brand-link h4 {
-            margin: 0;
             font-size: 1.1rem;
             font-weight: 600;
+            margin: 0;
         }
 
         .menu {
             list-style: none;
             display: flex;
             gap: 20px;
-            margin: 0;
             padding: 0;
+            margin: 0;
         }
 
-        .menu>li {
+        .menu li {
             position: relative;
         }
 
-        .menu>li>a {
-            display: block;
-            padding: 10px;
+        .menu li a {
             color: white;
             text-decoration: none;
+            padding: 10px;
+            font-weight: 500;
+            display: block;
         }
 
-        .menu>li:hover .submenu {
-            display: block;
+        .menu li a:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
         }
 
         .submenu {
             display: none;
             position: absolute;
+            top: 40px;
             right: 0;
-            background-color: #2e8b57;
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            z-index: 999;
-            min-width: 150px;
+            background-color: #3cb371;
+            border-radius: 4px;
+            min-width: 160px;
+            z-index: 1001;
         }
 
         .submenu li a {
-            display: block;
             padding: 10px 15px;
+            font-size: 14px;
             color: white;
             text-decoration: none;
+            display: block;
         }
 
         .submenu li a:hover {
-            background-color: #3cb371;
+            background-color: #2e8b57;
+        }
+
+        .menu li:hover .submenu {
+            display: block;
         }
 
         main {
             flex: 1;
+            padding-bottom: 60px;
         }
 
         .status-bar {
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(0, 0, 0, 0.75);
             color: white;
+            padding: 8px 0;
             text-align: center;
-            padding: 5px;
+            font-size: 13px;
+            position: relative;
+            z-index: 999;
+        }
+
+        /* Laravel Pagination Styling */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .page-item .page-link {
+            padding: 6px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+            color: #228B22;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .page-item.active .page-link {
+            background-color: #228B22;
+            color: white;
+            border-color: #228B22;
+        }
+
+        .page-link:hover {
+            background-color: #e0f5e9;
+            color: #1c6b1c;
+        }
+
+        @media (max-width: 768px) {
+            .navbar {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .menu {
+                flex-direction: column;
+                width: 100%;
+                gap: 0;
+            }
+
+            .menu li {
+                width: 100%;
+            }
+
+            .menu li a {
+                padding: 12px 16px;
+                width: 100%;
+                text-align: left;
+            }
+
+            .submenu {
+                position: static;
+                width: 100%;
+                border-radius: 0;
+            }
+
+            .submenu li a {
+                padding: 10px 20px;
+            }
         }
     </style>
 </head>
@@ -134,7 +214,6 @@
                         </li>
                     </ul>
                 </li>
-
                 <li>
                     <a href="#">Database ▾</a>
                     <ul class="submenu">
@@ -143,7 +222,6 @@
                         <li><a href="{{ route('anggota-non-siswa.index') }}">Non Siswa</a></li>
                     </ul>
                 </li>
-
                 <li>
                     <a href="#">Transaksi ▾</a>
                     <ul class="submenu">
@@ -153,7 +231,6 @@
                         <li><a href="{{ route('pengembalian-non-siswa.index') }}">Pengembalian Non Siswa</a></li>
                     </ul>
                 </li>
-
                 <li>
                     <a href="#">Laporan ▾</a>
                     <ul class="submenu">
@@ -164,7 +241,6 @@
                         <li><a href="{{ route('laporan.pengembalian') }}">Pengembalian</a></li>
                     </ul>
                 </li>
-
                 <li>
                     <a href="#">Pengaturan ▾</a>
                     <ul class="submenu">

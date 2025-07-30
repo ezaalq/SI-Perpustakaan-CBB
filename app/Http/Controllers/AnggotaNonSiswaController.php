@@ -7,10 +7,26 @@ use Illuminate\Http\Request;
 
 class AnggotaNonSiswaController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $anggota = AnggotaNonSiswa::all();
-        return view('anggota_non_siswa.index', compact('anggota'));
+        $query = AnggotaNonSiswa::query();
+
+        // Tambahkan searching
+        if ($request->has('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('NamaAnggota', 'like', "%$search%")
+                    ->orWhere('Jabatan', 'like', "%$search%");
+            });
+        }
+
+        // Ambil data aktif
+        $anggota = $query->latest('NoAnggotaNS')->paginate(10)->withQueryString();
+
+        // Ambil data yang sudah dihapus (soft delete)
+        $trashed = AnggotaNonSiswa::onlyTrashed()->paginate(5, ['*'], 'trash_page')->withQueryString();
+
+        return view('anggota_non_siswa.index', compact('anggota', 'trashed'));
     }
 
     public function create()
@@ -38,7 +54,7 @@ class AnggotaNonSiswaController extends Controller
 
         AnggotaNonSiswa::create($request->all());
         return redirect()->route('anggota-non-siswa.index')
-            ->with('success', 'Anggota Non Siswa berhasil ditambahkan.');
+            ->with('success', '✅ Anggota Non Siswa berhasil ditambahkan.');
     }
 
     public function edit($id)
@@ -56,8 +72,8 @@ class AnggotaNonSiswaController extends Controller
             'TTL' => 'required|date',
             'Alamat' => 'required',
             'KodePos' => 'required',
-            'NoTelp1' => 'nullable',
-            'NoTelp2' => 'nullable',
+            'NoTelp' => 'nullable',
+            'Hp' => 'nullable',
             'TglDaftar' => 'required|date',
         ]);
 
@@ -65,7 +81,7 @@ class AnggotaNonSiswaController extends Controller
         $anggota->update($request->except('NoAnggotaNS'));
 
         return redirect()->route('anggota-non-siswa.index')
-            ->with('success', 'Anggota Non Siswa berhasil diperbarui.');
+            ->with('success', '✅ Anggota Non Siswa berhasil diperbarui.');
     }
 
     public function destroy($id)
@@ -73,12 +89,30 @@ class AnggotaNonSiswaController extends Controller
         $anggota = AnggotaNonSiswa::findOrFail($id);
         $anggota->delete();
         return redirect()->route('anggota-non-siswa.index')
-            ->with('success', 'Anggota Non Siswa berhasil dihapus.');
+            ->with('success', '🗑️ Anggota Non Siswa berhasil dihapus.');
+    }
+
+    public function restore($id)
+    {
+        $anggota = AnggotaNonSiswa::onlyTrashed()->findOrFail($id);
+        $anggota->restore();
+
+        return redirect()->route('anggota-non-siswa.index')
+            ->with('success', '♻️ Anggota Non Siswa berhasil dikembalikan.');
+    }
+
+    public function forceDelete($id)
+    {
+        $anggota = AnggotaNonSiswa::onlyTrashed()->findOrFail($id);
+        $anggota->forceDelete();
+
+        return redirect()->route('anggota-non-siswa.index')
+            ->with('success', '❌ Data Anggota Non Siswa dihapus permanen.');
     }
 
     private function generateKode()
     {
-        $last = AnggotaNonSiswa::orderBy('NoAnggotaNS', 'desc')->first();
+        $last = AnggotaNonSiswa::withTrashed()->orderBy('NoAnggotaNS', 'desc')->first();
         $number = $last ? intval(substr($last->NoAnggotaNS, 2)) + 1 : 1;
         return 'AN' . str_pad($number, 4, '0', STR_PAD_LEFT);
     }

@@ -7,23 +7,28 @@
 
             <h1 style="margin-bottom:20px;">📄 Laporan Denda</h1>
 
+            {{-- Filter Tanggal & Search --}}
             <form method="GET" class="mb-4 d-flex justify-content-center gap-2" style="flex-wrap:wrap; gap:10px;">
                 <input type="date" name="from" value="{{ $from }}"
                     style="padding:5px; border:1px solid #ccc; border-radius:4px;">
                 <input type="date" name="to" value="{{ $to }}"
                     style="padding:5px; border:1px solid #ccc; border-radius:4px;">
+                <input type="text" name="search" value="{{ request('search') }}" placeholder="Cari nama anggota"
+                    style="padding:5px; border:1px solid #ccc; border-radius:4px; width:200px;">
                 <button class="btn btn-primary" style="padding:6px 12px;">🔍 Filter</button>
-                <a href="{{ route('laporan.denda.pdf', ['from' => $from, 'to' => $to]) }}" target="_blank" style="
-                                    background-color: #28a745;
-                                    color: #fff;
-                                    font-weight: 500;
-                                    text-decoration: none;
-                                    padding: 6px 12px;
-                                    border-radius: 5px;">
+                <a href="{{ route('laporan.denda.pdf', ['from' => $from, 'to' => $to, 'search' => request('search')]) }}"
+                    target="_blank" style="
+                        background-color: #28a745;
+                        color: #fff;
+                        font-weight: 500;
+                        text-decoration: none;
+                        padding: 6px 12px;
+                        border-radius: 5px;">
                     📄 Cetak PDF
                 </a>
             </form>
 
+            {{-- Tabel Siswa --}}
             <h3 style="margin-top:30px;">Siswa</h3>
             <div style="overflow-x:auto; display:flex; justify-content:center; margin-bottom:30px;">
                 <table class="table table-bordered table-striped text-center"
@@ -39,20 +44,25 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($siswa as $s)
+                        @forelse($siswa as $s)
                             <tr>
                                 <td>{{ $loop->iteration }}</td>
                                 <td>{{ $s->NoKembaliS }}</td>
                                 <td>{{ $s->NoPinjamS }}</td>
                                 <td>{{ $s->pinjam->anggota->NamaAnggota ?? '-' }}</td>
                                 <td>{{ $s->TglKembali }}</td>
-                                <td>{{ $s->Denda }}</td>
+                                <td>{{ number_format($s->Denda, 0, ',', '.') }}</td>
                             </tr>
-                        @endforeach
+                        @empty
+                            <tr>
+                                <td colspan="6">Tidak ada data ditemukan.</td>
+                            </tr>
+                        @endforelse
                     </tbody>
                 </table>
             </div>
 
+            {{-- Tabel Non Siswa --}}
             <h3 style="margin-top:30px;">Non Siswa</h3>
             <div style="overflow-x:auto; display:flex; justify-content:center;">
                 <table class="table table-bordered table-striped text-center"
@@ -68,19 +78,25 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($non as $n)
+                        @forelse($non as $n)
                             <tr>
                                 <td>{{ $loop->iteration }}</td>
                                 <td>{{ $n->NoKembaliNS }}</td>
                                 <td>{{ $n->NoPinjamNS }}</td>
                                 <td>{{ $n->pinjam->anggota->NamaAnggota ?? '-' }}</td>
                                 <td>{{ $n->TglKembali }}</td>
-                                <td>{{ $n->Denda }}</td>
+                                <td>{{ number_format($n->Denda, 0, ',', '.') }}</td>
                             </tr>
-                        @endforeach
+                        @empty
+                            <tr>
+                                <td colspan="6">Tidak ada data ditemukan.</td>
+                            </tr>
+                        @endforelse
                     </tbody>
                 </table>
             </div>
+
+            {{-- Tanda Tangan --}}
             <div style="width:100%; display:flex; justify-content:flex-end; margin-top:50px;">
                 <div style="text-align:right;">
                     <p>Mengetahui,</p>

@@ -7,10 +7,22 @@ use Illuminate\Http\Request;
 
 class AnggotaSiswaController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $anggota = AnggotaSiswa::all();
-        return view('anggota_siswa.index', compact('anggota'));
+        $query = AnggotaSiswa::query();
+
+        if ($request->has('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('NamaAnggota', 'like', "%$search%")
+                    ->orWhere('NoInduk', 'like', "%$search%");
+            });
+        }
+
+        $anggota = $query->latest('NoAnggotaS')->paginate(10)->withQueryString();
+        $trashed = AnggotaSiswa::onlyTrashed()->paginate(5, ['*'], 'trash_page')->withQueryString();
+
+        return view('anggota_siswa.index', compact('anggota', 'trashed'));
     }
 
     public function create()
@@ -30,8 +42,8 @@ class AnggotaSiswaController extends Controller
             'TTL' => 'required|date',
             'Alamat' => 'required',
             'KodePos' => 'required',
-            'NoTelp1' => 'nullable',
-            'NoTelp2' => 'nullable',
+            'NoTelp' => 'nullable',
+            'Hp' => 'nullable',
             'TglDaftar' => 'required|date',
             'NamaOrtu' => 'required',
             'AlamatOrtu' => 'required',
@@ -40,7 +52,7 @@ class AnggotaSiswaController extends Controller
 
         AnggotaSiswa::create($request->all());
         return redirect()->route('anggota-siswa.index')
-            ->with('success', 'Anggota siswa berhasil ditambahkan.');
+            ->with('success', '✅ Anggota siswa berhasil ditambahkan.');
     }
 
     public function edit($id)
@@ -67,21 +79,41 @@ class AnggotaSiswaController extends Controller
 
         $anggota = AnggotaSiswa::findOrFail($id);
         $anggota->update($request->except('NoAnggotaS'));
+
         return redirect()->route('anggota-siswa.index')
-            ->with('success', 'Anggota siswa berhasil diperbarui.');
+            ->with('success', '✅ Anggota siswa berhasil diperbarui.');
     }
 
     public function destroy($id)
     {
         $anggota = AnggotaSiswa::findOrFail($id);
         $anggota->delete();
+
         return redirect()->route('anggota-siswa.index')
-            ->with('success', 'Anggota siswa berhasil dihapus.');
+            ->with('success', '🗑️ Anggota siswa berhasil dihapus.');
+    }
+
+    public function restore($id)
+    {
+        $anggota = AnggotaSiswa::onlyTrashed()->findOrFail($id);
+        $anggota->restore();
+
+        return redirect()->route('anggota-siswa.index')
+            ->with('success', '♻️ Anggota siswa berhasil dikembalikan.');
+    }
+
+    public function forceDelete($id)
+    {
+        $anggota = AnggotaSiswa::onlyTrashed()->findOrFail($id);
+        $anggota->forceDelete();
+
+        return redirect()->route('anggota-siswa.index')
+            ->with('success', '❌ Data anggota siswa dihapus permanen.');
     }
 
     private function generateKode()
     {
-        $last = AnggotaSiswa::orderBy('NoAnggotaS', 'desc')->first();
+        $last = AnggotaSiswa::withTrashed()->orderBy('NoAnggotaS', 'desc')->first();
         $number = $last ? intval(substr($last->NoAnggotaS, 2)) + 1 : 1;
         return 'AS' . str_pad($number, 4, '0', STR_PAD_LEFT);
     }

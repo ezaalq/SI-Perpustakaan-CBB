@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class AnggotaSiswa extends Model
 {
+    use SoftDeletes;
+
     protected $table = 'anggota_siswa';
     protected $primaryKey = 'NoAnggotaS';
     public $incrementing = false;
@@ -26,6 +29,8 @@ class AnggotaSiswa extends Model
         'AlamatOrtu',
         'NoTelpOrtu'
     ];
+
+    protected $dates = ['deleted_at'];
 
     public function pinjamHeader()
     {
